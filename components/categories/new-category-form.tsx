@@ -28,32 +28,23 @@ const colorOptions = [
 
 const iconOptions = [
   "utensils",
-  "car",
+  "car", 
   "home",
   "heart",
-  "graduation-cap",
+  "book",
   "gamepad2",
-  "shirt",
   "laptop",
-  "smartphone",
-  "plane",
-  "shopping-cart",
-  "zap",
   "dollar-sign",
   "trending-up",
-  "target",
-  "wrench",
-  "palette",
-  "book",
-  "running",
-  "music",
+  "briefcase",
+  "arrow-left-right",
 ]
 
 export function NewCategoryForm({ onClose }: NewCategoryFormProps) {
   const [name, setName] = useState("")
   const [type, setType] = useState<"income" | "expense">("expense")
   const [color, setColor] = useState("#3b82f6")
-  const [icon, setIcon] = useState("tag")
+  const [icon, setIcon] = useState("dollar-sign")
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
