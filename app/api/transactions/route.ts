@@ -1,0 +1,128 @@
+import { NextRequest, NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
+
+// GET /api/transactions - Listar todas as transações
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const accountId = searchParams.get('accountId')
+    const categoryId = searchParams.get('categoryId')
+    const type = searchParams.get('type')
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
+
+    const where: any = {}
+    
+    if (accountId) where.accountId = accountId
+    if (categoryId) where.categoryId = categoryId
+    if (type) where.type = type
+    if (startDate || endDate) {
+      where.date = {}
+      if (startDate) where.date.gte = new Date(startDate)
+      if (endDate) where.date.lte = new Date(endDate)
+    }
+
+    const [transactions, total] = await Promise.all([
+      prisma.transaction.findMany({
+        where,
+        include: {
+          account: true,
+          category: true
+        },
+        orderBy: { date: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit
+      }),
+      prisma.transaction.count({ where })
+    ])
+
+    return NextResponse.json({
+      transactions,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching transactions:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch transactions' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST /api/transactions - Criar nova transação
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { amount, type, description, date, notes, tags, accountId, categoryId } = body
+
+    // Validação básica
+    if (!amount || !type || !description || !accountId || !categoryId) {
+      return NextResponse.json(
+        { error: 'Campos obrigatórios: amount, type, description, accountId, categoryId' },
+        { status: 400 }
+      )
+    }
+
+    if (!['income', 'expense', 'transfer'].includes(type)) {
+      return NextResponse.json(
+        { error: 'Tipo inválido. Use: income, expense ou transfer' },
+        { status: 400 }
+      )
+    }
+
+    if (amount <= 0) {
+      return NextResponse.json(
+        { error: 'Valor deve ser maior que zero' },
+        { status: 400 }
+      )
+    }
+
+    const transaction = await prisma.transaction.create({
+      data: {
+        amount,
+        type,
+        description,
+        date: date ? new Date(date) : new Date(),
+        notes,
+        tags: tags || [],
+        accountId,
+        categoryId
+      },
+      include: {
+        account: true,
+        category: true
+      }
+    })
+
+    // Atualizar saldo da conta
+    const account = await prisma.account.findUnique({
+      where: { id: accountId }
+    })
+
+    if (account) {
+      const newBalance = type === 'income' 
+        ? account.balance + amount 
+        : account.balance - amount
+
+      await prisma.account.update({
+        where: { id: accountId },
+        data: { balance: newBalance }
+      })
+    }
+
+    return NextResponse.json(transaction, { status: 201 })
+  } catch (error) {
+    console.error('Error creating transaction:', error)
+    return NextResponse.json(
+      { error: 'Failed to create transaction' },
+      { status: 500 }
+    )
+  }
+}
