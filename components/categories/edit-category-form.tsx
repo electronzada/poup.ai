@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Icon } from "@/components/ui/icon"
 
 interface Category {
   id: string
@@ -38,26 +39,17 @@ const colorOptions = [
 ]
 
 const iconOptions = [
-  "🍽️",
-  "🚗",
-  "🏠",
-  "🏥",
-  "🎓",
-  "🎮",
-  "👕",
-  "💻",
-  "📱",
-  "✈️",
-  "🛒",
-  "⚡",
-  "💰",
-  "📊",
-  "🎯",
-  "🔧",
-  "🎨",
-  "📚",
-  "🏃",
-  "🎵",
+  "utensils",
+  "car", 
+  "home",
+  "heart",
+  "book",
+  "gamepad2",
+  "laptop",
+  "dollar-sign",
+  "trending-up",
+  "briefcase",
+  "arrow-left-right",
 ]
 
 export function EditCategoryForm({ category, onSave, onClose }: EditCategoryFormProps) {
@@ -128,12 +120,12 @@ export function EditCategoryForm({ category, onSave, onClose }: EditCategoryForm
             <button
               key={iconOption}
               type="button"
-              className={`w-8 h-8 rounded border text-lg flex items-center justify-center ${
+              className={`w-8 h-8 rounded border flex items-center justify-center ${
                 icon === iconOption ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
               }`}
               onClick={() => setIcon(iconOption)}
             >
-              {iconOption}
+              <Icon name={iconOption} className="h-4 w-4" />
             </button>
           ))}
         </div>
