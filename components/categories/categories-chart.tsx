@@ -3,17 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
-// Mock data
-const chartData = [
-  { categoria: "Alimentação", valor: 2500, transacoes: 32 },
-  { categoria: "Transporte", valor: 1200, transacoes: 45 },
-  { categoria: "Casa", valor: 1500, transacoes: 18 },
-  { categoria: "Saúde", valor: 800, transacoes: 12 },
-  { categoria: "Lazer", valor: 900, transacoes: 28 },
-  { categoria: "Educação", valor: 600, transacoes: 8 },
-  { categoria: "Roupas", valor: 400, transacoes: 15 },
-  { categoria: "Tecnologia", valor: 350, transacoes: 6 },
-]
+const chartData: Array<{ categoria: string; valor: number; transacoes: number }> = []
 
 export function CategoriesChart() {
   return (
@@ -49,6 +39,9 @@ export function CategoriesChart() {
             <Bar dataKey="valor" fill="hsl(var(--chart-1))" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
+        {chartData.length === 0 && (
+          <div className="text-sm text-muted-foreground mt-4">Sem dados para o período selecionado.</div>
+        )}
       </CardContent>
     </Card>
   )

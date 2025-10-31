@@ -3,19 +3,14 @@ import { Badge } from "@/components/ui/badge"
 import { TrendingUp, TrendingDown, Receipt } from "lucide-react"
 
 export function TransactionsSidebar() {
-  // Mock data - em uma aplicação real, estes dados viriam dos filtros ativos
   const summaryData = {
-    totalTransactions: 127,
-    totalIncome: 24170.8,
-    totalExpenses: 8750.3,
-    balance: 15420.5,
+    totalTransactions: 0,
+    totalIncome: 0,
+    totalExpenses: 0,
+    balance: 0,
   }
 
-  const activeFilters = [
-    { type: "Período", value: "Últimos 30 dias" },
-    { type: "Conta", value: "Conta Corrente" },
-    { type: "Categoria", value: "Alimentação" },
-  ]
+  const activeFilters: Array<{ type: string; value: string }> = []
 
   return (
     <div className="space-y-6">
@@ -25,6 +20,9 @@ export function TransactionsSidebar() {
           <CardTitle className="text-lg">Filtros Ativos</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {activeFilters.length === 0 && (
+            <div className="text-sm text-muted-foreground">Sem filtros ativos.</div>
+          )}
           {activeFilters.map((filter, index) => (
             <div key={index} className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">{filter.type}:</span>

@@ -12,9 +12,8 @@ export function DashboardFilters() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
 
-  // Mock data
-  const accounts = ["Conta Corrente", "Poupança", "Cartão de Crédito", "Dinheiro"]
-  const categories = ["Alimentação", "Transporte", "Saúde", "Educação", "Lazer", "Casa"]
+  const accounts: string[] = []
+  const categories: string[] = []
 
   const removeFilter = (type: "account" | "category", value: string) => {
     if (type === "account") {

@@ -11,14 +11,13 @@ export function SystemSettings() {
   const [isRecalculating, setIsRecalculating] = useState(false)
   const [recalculateProgress, setRecalculateProgress] = useState(0)
 
-  // Mock system data
   const systemInfo = {
-    totalTransactions: 1247,
-    totalCategories: 12,
-    totalAccounts: 4,
-    databaseSize: "2.3 MB",
-    lastBackup: new Date("2024-12-05"),
-    systemStatus: "healthy",
+    totalTransactions: 0,
+    totalCategories: 0,
+    totalAccounts: 0,
+    databaseSize: "-",
+    lastBackup: new Date(),
+    systemStatus: "-",
   }
 
   const handleRecalculateBalances = async () => {
@@ -93,8 +92,8 @@ export function SystemSettings() {
             <div className="flex items-center gap-3 p-3 border rounded-lg">
               <CheckCircle className="h-5 w-5 text-success" />
               <div>
-                <Badge variant="outline" className="text-success border-success">
-                  Saudável
+                <Badge variant="outline" className="text-muted-foreground border-border">
+                  Sem status
                 </Badge>
                 <p className="text-xs text-muted-foreground">Sistema</p>
               </div>

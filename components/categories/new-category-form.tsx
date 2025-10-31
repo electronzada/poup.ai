@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Icon } from "@/components/ui/icon"
+import { useToast } from "@/hooks/use-toast"
 
 interface NewCategoryFormProps {
   onClose: () => void
@@ -45,17 +46,46 @@ export function NewCategoryForm({ onClose }: NewCategoryFormProps) {
   const [type, setType] = useState<"income" | "expense">("expense")
   const [color, setColor] = useState("#3b82f6")
   const [icon, setIcon] = useState("dollar-sign")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Aqui você salvaria a categoria
-    console.log({
-      name,
-      type,
-      color,
-      icon,
-    })
-    onClose()
+
+    try {
+      setIsSubmitting(true)
+      const response = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, type, color, icon })
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => null)
+        throw new Error(err?.error || 'Erro ao criar categoria')
+      }
+
+      // Avisar outras partes da UI para recarregar
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('categories:changed'))
+      }
+
+      toast({
+        title: 'Sucesso',
+        description: 'Categoria criada com sucesso.'
+      })
+
+      onClose()
+    } catch (error: any) {
+      console.error('Erro ao criar categoria:', error)
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível criar a categoria.',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -121,10 +151,10 @@ export function NewCategoryForm({ onClose }: NewCategoryFormProps) {
       </div>
 
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
           Cancelar
         </Button>
-        <Button type="submit">Criar Categoria</Button>
+        <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Criando...' : 'Criar Categoria'}</Button>
       </div>
     </form>
   )

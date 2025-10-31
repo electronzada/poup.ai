@@ -61,6 +61,15 @@ export function AccountsTable() {
 
   useEffect(() => {
     loadAccounts()
+    const handler = () => loadAccounts()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('accounts:changed', handler)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('accounts:changed', handler)
+      }
+    }
   }, [])
 
   const handleDelete = async (id: string) => {

@@ -20,14 +20,7 @@ import {
 
 export const description = "A linear area chart"
 
-const chartData = [
-  { month: "Janeiro", income: 4500, expense: 3200, balance: 1300 },
-  { month: "Fevereiro", income: 4200, expense: 3800, balance: 400 },
-  { month: "Março", income: 4800, expense: 3500, balance: 1300 },
-  { month: "Abril", income: 4100, expense: 4200, balance: -100 },
-  { month: "Maio", income: 4600, expense: 3400, balance: 1200 },
-  { month: "Junho", income: 4900, expense: 3600, balance: 1300 },
-]
+const chartData: Array<{ month: string; income: number; expense: number; balance: number }> = []
 
 const chartConfig = {
   income: {
@@ -55,7 +48,7 @@ export function DashboardCharts() {
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[200px] w-full">
-          <LineChart
+            <LineChart
             accessibilityLayer
             data={chartData}
             margin={{
@@ -109,15 +102,7 @@ export function DashboardCharts() {
       <CardFooter>
         <div className="flex w-full items-start gap-2 text-sm">
           <div className="grid gap-2">
-            <div className="flex items-center gap-2 leading-none font-medium">
-              <span className="text-green-600">↗</span>
-              <span>Receitas: R$ 27.100</span>
-              <span className="text-red-600">↘</span>
-              <span>Despesas: R$ 21.700</span>
-            </div>
-            <div className="text-muted-foreground flex items-center gap-2 leading-none">
-              Saldo positivo: R$ 5.400 • Janeiro - Junho 2024
-            </div>
+            <div className="text-muted-foreground">Sem dados para exibir.</div>
           </div>
         </div>
       </CardFooter>

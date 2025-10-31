@@ -55,6 +55,16 @@ export function CategoriesTable() {
 
   useEffect(() => {
     loadCategories()
+    // Recarregar quando categorias forem alteradas (criação/edição/remoção)
+    const handler = () => loadCategories()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('categories:changed', handler)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('categories:changed', handler)
+      }
+    }
   }, [])
 
   const handleDelete = async (id: string) => {
