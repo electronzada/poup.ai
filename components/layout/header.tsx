@@ -4,8 +4,13 @@ import { Button } from "@/components/ui/button"
 import { Moon, Sun, Bell, User } from "lucide-react"
 import { useTheme } from "next-themes"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { signOut } from "next-auth/react"
+
 
 export function Header() {
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: "/login"})
+  }
   const { setTheme, theme } = useTheme()
 
   return (
@@ -32,7 +37,7 @@ export function Header() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem>Perfil</DropdownMenuItem>
-            <DropdownMenuItem>Sair</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>Sair</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
