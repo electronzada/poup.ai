@@ -40,7 +40,7 @@ export function CategoriesChart() {
           </BarChart>
         </ResponsiveContainer>
         {chartData.length === 0 && (
-          <div className="text-sm text-muted-foreground mt-4">Sem dados para o período selecionado.</div>
+          <div className="text-sm text-muted-foreground mt-4">Sem dados para o período selecionado. </div>
         )}
       </CardContent>
     </Card>
