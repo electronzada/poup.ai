@@ -1,10 +1,10 @@
-"use client"
-
+import prisma from '@/lib/prisma'
 import { AccountsHeader } from "@/components/accounts/accounts-header"
 import { AccountsKpis } from "@/components/accounts/accounts-kpis"
 import { AccountsTable } from "@/components/accounts/accounts-table"
 
-export default function AccountsPage() {
+export default async function AccountsPage() {
+  const accounts = await prisma.account.findMany({ orderBy: { createdAt: 'desc' } })
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -15,7 +15,7 @@ export default function AccountsPage() {
 
       <AccountsKpis />
 
-      <AccountsTable />
+      <AccountsTable initialAccounts={accounts as any} />
     </div>
   )
 }

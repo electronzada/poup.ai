@@ -24,8 +24,8 @@ interface Category {
   updatedAt: string
 }
 
-export function CategoriesTable() {
-  const [categories, setCategories] = useState<Category[]>([])
+export function CategoriesTable({ initialCategories }: { initialCategories?: Category[] }) {
+  const [categories, setCategories] = useState<Category[]>(initialCategories || [])
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
@@ -54,7 +54,12 @@ export function CategoriesTable() {
   }
 
   useEffect(() => {
-    loadCategories()
+    // Se veio dado inicial do servidor, evita a primeira chamada
+    if (!initialCategories || initialCategories.length === 0) {
+      loadCategories()
+    } else {
+      setIsLoading(false)
+    }
     // Recarregar quando categorias forem alteradas (criação/edição/remoção)
     const handler = () => loadCategories()
     if (typeof window !== 'undefined') {

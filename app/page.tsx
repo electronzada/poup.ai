@@ -1,14 +1,11 @@
-"use client"
-
-import { useState, useEffect } from "react"
+import prisma from '@/lib/prisma'
 import type { DateRange } from "react-day-picker"
 import { subDays } from "date-fns"
 import { KpiCard } from "@/components/ui/kpi-card"
 import { DateRangeFilter } from "@/components/filters/date-range-filter"
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts"
 import { DashboardFilters } from "@/components/dashboard/dashboard-filters"
-import { TrendingUp, TrendingDown, Receipt, DollarSign, Loader2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { TrendingUp, TrendingDown, Receipt, DollarSign } from "lucide-react"
 
 interface DashboardStats {
   overview: {
@@ -21,71 +18,49 @@ interface DashboardStats {
   }
 }
 
-export default function DashboardPage() {
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
-  })
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const { toast } = useToast()
-
-  // Carregar estatísticas da API
-  const loadStats = async () => {
-    try {
-      setIsLoading(true)
-      const params = new URLSearchParams()
-      
-      if (dateRange?.from) {
-        params.set('startDate', dateRange.from.toISOString())
-      }
-      if (dateRange?.to) {
-        params.set('endDate', dateRange.to.toISOString())
-      }
-
-      const response = await fetch(`/api/dashboard/stats?${params}`)
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data)
-      } else {
-        throw new Error('Erro ao carregar estatísticas')
-      }
-    } catch (error) {
-      console.error('Erro ao carregar estatísticas:', error)
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar as estatísticas.",
-        variant: "destructive"
-      })
-    } finally {
-      setIsLoading(false)
-    }
+export default async function DashboardPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
+  const fromIso = typeof searchParams?.startDate === 'string' ? searchParams.startDate : undefined
+  const toIso = typeof searchParams?.endDate === 'string' ? searchParams.endDate : undefined
+  const dateRange: DateRange = {
+    from: fromIso ? new Date(fromIso) : subDays(new Date(), 30),
+    to: toIso ? new Date(toIso) : new Date(),
   }
 
-  // Carregar estatísticas quando o componente monta ou quando dateRange muda
-  useEffect(() => {
-    loadStats()
-  }, [dateRange])
+  const dateFilter: any = {}
+  if (dateRange.from) dateFilter.gte = dateRange.from
+  if (dateRange.to) dateFilter.lte = dateRange.to
+
+  const [totalAccounts, totalTransactions, totalIncomeAgg, totalExpensesAgg, accounts] = await Promise.all([
+    prisma.account.count({ where: { isActive: true } }),
+    prisma.transaction.count({ where: Object.keys(dateFilter).length ? { date: dateFilter } : {} }),
+    prisma.transaction.aggregate({ where: { type: 'income', ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}) }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { type: 'expense', ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}) }, _sum: { amount: true } }),
+    prisma.account.findMany({ where: { isActive: true }, select: { balance: true } }),
+  ])
+
+  const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0)
+  const stats: DashboardStats = {
+    overview: {
+      totalAccounts,
+      totalTransactions,
+      totalBalance,
+      totalIncome: totalIncomeAgg._sum.amount || 0,
+      totalExpenses: totalExpensesAgg._sum.amount || 0,
+      netIncome: (totalIncomeAgg._sum.amount || 0) - (totalExpensesAgg._sum.amount || 0),
+    }
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <DateRangeFilter date={dateRange} onDateChange={setDateRange} className="w-auto" />
+        <DateRangeFilter date={dateRange} className="w-auto" />
       </div>
 
       <DashboardFilters />
 
       {/* KPI Cards */}
-      {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-32 bg-card border rounded-lg flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ))}
-        </div>
-      ) : stats ? (
+      {stats ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             title="Saldo Total"

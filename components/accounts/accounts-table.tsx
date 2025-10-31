@@ -30,8 +30,8 @@ const accountTypeConfig = {
   investment: { label: "Investimento", icon: Banknote, color: "bg-purple-500" },
 }
 
-export function AccountsTable() {
-  const [accounts, setAccounts] = useState<Account[]>([])
+export function AccountsTable({ initialAccounts }: { initialAccounts?: Account[] }) {
+  const [accounts, setAccounts] = useState<Account[]>(initialAccounts || [])
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
@@ -60,7 +60,11 @@ export function AccountsTable() {
   }
 
   useEffect(() => {
-    loadAccounts()
+    if (!initialAccounts || initialAccounts.length === 0) {
+      loadAccounts()
+    } else {
+      setIsLoading(false)
+    }
     const handler = () => loadAccounts()
     if (typeof window !== 'undefined') {
       window.addEventListener('accounts:changed', handler)

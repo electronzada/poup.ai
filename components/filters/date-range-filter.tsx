@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 
 interface DateRangeFilterProps {
   date: DateRange | undefined
-  onDateChange: (date: DateRange | undefined) => void
+  onDateChange?: (date: DateRange | undefined) => void
   className?: string
 }
 
