@@ -6,6 +6,9 @@ import { DateRangeFilter } from "@/components/filters/date-range-filter"
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts"
 import { DashboardFilters } from "@/components/dashboard/dashboard-filters"
 import { TrendingUp, TrendingDown, Receipt, DollarSign } from "lucide-react"
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 
 interface DashboardStats {
   overview: {
@@ -19,6 +22,15 @@ interface DashboardStats {
 }
 
 export default async function DashboardPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
+  // Obter usuário logado
+  const session = await getServerSession(authOptions as any)
+  
+  if (!session?.user?.id) {
+    redirect('/login')
+  }
+
+  const userId = session.user.id
+
   const fromIso = typeof searchParams?.startDate === 'string' ? searchParams.startDate : undefined
   const toIso = typeof searchParams?.endDate === 'string' ? searchParams.endDate : undefined
   const dateRange: DateRange = {
@@ -30,12 +42,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Re
   if (dateRange.from) dateFilter.gte = dateRange.from
   if (dateRange.to) dateFilter.lte = dateRange.to
 
+  const userFilter = { userId }
+
   const [totalAccounts, totalTransactions, totalIncomeAgg, totalExpensesAgg, accounts] = await Promise.all([
-    prisma.account.count({ where: { isActive: true } }),
-    prisma.transaction.count({ where: Object.keys(dateFilter).length ? { date: dateFilter } : {} }),
-    prisma.transaction.aggregate({ where: { type: 'income', ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}) }, _sum: { amount: true } }),
-    prisma.transaction.aggregate({ where: { type: 'expense', ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}) }, _sum: { amount: true } }),
-    prisma.account.findMany({ where: { isActive: true }, select: { balance: true } }),
+    prisma.account.count({ where: { ...userFilter, isActive: true } }),
+    prisma.transaction.count({ where: { ...userFilter, ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}) } }),
+    prisma.transaction.aggregate({ where: { ...userFilter, type: 'income', ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}) }, _sum: { amount: true } }),
+    prisma.transaction.aggregate({ where: { ...userFilter, type: 'expense', ...(Object.keys(dateFilter).length ? { date: dateFilter } : {}) }, _sum: { amount: true } }),
+    prisma.account.findMany({ where: { ...userFilter, isActive: true }, select: { balance: true } }),
   ])
 
   const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0)

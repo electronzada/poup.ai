@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/get-server-session'
 
 // GET /api/budgets/[id] - Buscar orçamento específico
 export async function GET(
@@ -7,8 +8,20 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const budget = await prisma.budget.findUnique({
-      where: { id: params.id },
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
+    const budget = await prisma.budget.findFirst({
+      where: { 
+        id: params.id,
+        userId: user.id
+      },
       include: {
         category: true
       }
@@ -37,8 +50,49 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { name, amount, period, startDate, endDate, isActive, categoryId } = body
+
+    // Verificar se o budget existe e pertence ao usuário
+    const existingBudget = await prisma.budget.findFirst({
+      where: { 
+        id: params.id,
+        userId: user.id
+      }
+    })
+
+    if (!existingBudget) {
+      return NextResponse.json(
+        { error: 'Budget not found' },
+        { status: 404 }
+      )
+    }
+
+    // Se categoryId foi fornecido, verificar se pertence ao usuário
+    if (categoryId) {
+      const category = await prisma.category.findFirst({
+        where: { 
+          id: categoryId,
+          userId: user.id
+        }
+      })
+
+      if (!category) {
+        return NextResponse.json(
+          { error: 'Categoria não encontrada ou não pertence ao usuário' },
+          { status: 404 }
+        )
+      }
+    }
 
     const budget = await prisma.budget.update({
       where: { id: params.id },
@@ -72,6 +126,30 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
+    // Verificar se o budget existe e pertence ao usuário
+    const budget = await prisma.budget.findFirst({
+      where: { 
+        id: params.id,
+        userId: user.id
+      }
+    })
+
+    if (!budget) {
+      return NextResponse.json(
+        { error: 'Budget not found' },
+        { status: 404 }
+      )
+    }
+
     await prisma.budget.delete({
       where: { id: params.id }
     })

@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/get-server-session'
 
 // GET /api/accounts - Listar todas as contas
 export async function GET() {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const accounts = await prisma.account.findMany({
+      where: { userId: user.id },
       orderBy: { createdAt: 'desc' }
     })
     return NextResponse.json(accounts)
@@ -20,6 +31,15 @@ export async function GET() {
 // POST /api/accounts - Criar nova conta
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { name, type, balance, currency, description } = body
 
@@ -44,7 +64,8 @@ export async function POST(request: NextRequest) {
         type,
         balance: balance || 0,
         currency: currency || 'BRL',
-        description
+        description,
+        userId: user.id
       }
     })
 

@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/get-server-session'
 
 // GET /api/transactions - Listar todas as transações
 export async function GET(request: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -13,7 +23,9 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    const where: any = {}
+    const where: any = {
+      userId: user.id
+    }
     
     if (accountId) where.accountId = accountId
     if (categoryId) where.categoryId = categoryId
@@ -59,6 +71,15 @@ export async function GET(request: NextRequest) {
 // POST /api/transactions - Criar nova transação
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     const { amount, type, description, date, notes, tags, accountId, categoryId } = body
 
@@ -84,6 +105,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Verificar se a conta e categoria pertencem ao usuário
+    const [account, category] = await Promise.all([
+      prisma.account.findFirst({
+        where: { id: accountId, userId: user.id }
+      }),
+      prisma.category.findFirst({
+        where: { id: categoryId, userId: user.id }
+      })
+    ])
+
+    if (!account) {
+      return NextResponse.json(
+        { error: 'Conta não encontrada ou não pertence ao usuário' },
+        { status: 404 }
+      )
+    }
+
+    if (!category) {
+      return NextResponse.json(
+        { error: 'Categoria não encontrada ou não pertence ao usuário' },
+        { status: 404 }
+      )
+    }
+
     const transaction = await prisma.transaction.create({
       data: {
         amount,
@@ -93,17 +138,13 @@ export async function POST(request: NextRequest) {
         notes,
         tags: tags || [],
         accountId,
-        categoryId
+        categoryId,
+        userId: user.id
       },
       include: {
         account: true,
         category: true
       }
-    })
-
-    // Atualizar saldo da conta
-    const account = await prisma.account.findUnique({
-      where: { id: accountId }
     })
 
     if (account) {

@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/get-server-session'
 
 // GET /api/accounts/[id] - Obter conta específica
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
     
-    const account = await prisma.account.findUnique({
-      where: { id }
+    const account = await prisma.account.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      }
     })
 
     if (!account) {
@@ -30,6 +43,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 // PUT /api/accounts/[id] - Atualizar conta
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
     const body = await request.json()
     const { name, type, currency, description, isActive } = body
@@ -49,9 +71,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       )
     }
 
-    // Verificar se a conta existe
-    const existingAccount = await prisma.account.findUnique({
-      where: { id }
+    // Verificar se a conta existe e pertence ao usuário
+    const existingAccount = await prisma.account.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      }
     })
 
     if (!existingAccount) {
@@ -86,11 +111,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 // DELETE /api/accounts/[id] - Excluir conta
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
 
-    // Verificar se a conta existe
-    const account = await prisma.account.findUnique({
-      where: { id }
+    // Verificar se a conta existe e pertence ao usuário
+    const account = await prisma.account.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      }
     })
 
     if (!account) {
@@ -102,7 +139,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Verificar se há transações associadas
     const transactionCount = await prisma.transaction.count({
-      where: { accountId: id }
+      where: { 
+        accountId: id,
+        userId: user.id
+      }
     })
 
     if (transactionCount > 0) {

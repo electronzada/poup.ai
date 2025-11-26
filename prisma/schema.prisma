@@ -22,14 +22,18 @@ model Account {
   updatedAt   DateTime @updatedAt
 
   // Relations
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
   transactions Transaction[]
 
+  @@index([userId, isActive])
+  @@index([userId, createdAt])
   @@map("accounts")
 }
 
 model Category {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String   @unique
+  name        String
   type        String   // "income", "expense", "transfer"
   color       String?  // Hex color code
   icon        String?  // Icon name
@@ -39,9 +43,12 @@ model Category {
   updatedAt   DateTime @updatedAt
 
   // Relations
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
   transactions Transaction[]
   budgets     Budget[]
 
+  @@unique([userId, name])
   @@map("categories")
 }
 
@@ -59,11 +66,17 @@ model Transaction {
   updatedAt   DateTime @updatedAt
 
   // Relations
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
   accountId   String   @db.ObjectId
   account     Account  @relation(fields: [accountId], references: [id])
   categoryId  String   @db.ObjectId
   category    Category @relation(fields: [categoryId], references: [id])
 
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([userId, accountId])
+  @@index([userId, categoryId])
   @@map("transactions")
 }
 
@@ -80,9 +93,13 @@ model Budget {
   updatedAt   DateTime @updatedAt
 
   // Relations
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
   categoryId  String   @db.ObjectId
   category    Category @relation(fields: [categoryId], references: [id])
 
+  @@index([userId, isActive])
+  @@index([userId, startDate, endDate])
   @@map("budgets")
 }
 
@@ -97,6 +114,12 @@ model Goal {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Relations
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, isCompleted])
+  @@index([userId, targetDate])
   @@map("goals")
 }
 
@@ -108,6 +131,13 @@ model User {
   image        String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // Relations
+  accounts     Account[]
+  categories   Category[]
+  transactions Transaction[]
+  budgets      Budget[]
+  goals        Goal[]
 
   @@map("users")
 }

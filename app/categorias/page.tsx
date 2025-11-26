@@ -6,10 +6,25 @@ import { CategoriesKpis } from "@/components/categories/categories-kpis"
 import { CategoriesChart } from "@/components/categories/categories-chart"
 import { CategoriesTable } from "@/components/categories/categories-table"
 import { DateRangeFilter } from "@/components/filters/date-range-filter"
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 
 export default async function CategoriesPage() {
   const dateRange: DateRange = { from: subDays(new Date(), 30), to: new Date() }
-  const categories = await prisma.category.findMany({ orderBy: { name: 'asc' } })
+  
+  // Obter usuário logado
+  const session = await getServerSession(authOptions as any)
+  
+  if (!session?.user?.id) {
+    redirect('/login')
+  }
+
+  // Buscar apenas categorias do usuário logado
+  const categories = await prisma.category.findMany({ 
+    where: { userId: session.user.id },
+    orderBy: { name: 'asc' } 
+  })
 
   return (
     <div className="space-y-6">

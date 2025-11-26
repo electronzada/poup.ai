@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/get-server-session'
 
 // GET /api/transactions/[id] - Obter transação específica
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
     
-    const transaction = await prisma.transaction.findUnique({
-      where: { id },
+    const transaction = await prisma.transaction.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      },
       include: {
         account: true,
         category: true
@@ -34,6 +47,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 // PUT /api/transactions/[id] - Atualizar transação
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
     const body = await request.json()
     const { amount, type, description, date, notes, tags, accountId, categoryId } = body
@@ -60,15 +82,42 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       )
     }
 
-    // Verificar se a transação existe
-    const existingTransaction = await prisma.transaction.findUnique({
-      where: { id },
+    // Verificar se a transação existe e pertence ao usuário
+    const existingTransaction = await prisma.transaction.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      },
       include: { account: true }
     })
 
     if (!existingTransaction) {
       return NextResponse.json(
         { error: 'Transação não encontrada' },
+        { status: 404 }
+      )
+    }
+
+    // Verificar se a conta e categoria pertencem ao usuário
+    const [account, category] = await Promise.all([
+      prisma.account.findFirst({
+        where: { id: accountId, userId: user.id }
+      }),
+      prisma.category.findFirst({
+        where: { id: categoryId, userId: user.id }
+      })
+    ])
+
+    if (!account) {
+      return NextResponse.json(
+        { error: 'Conta não encontrada ou não pertence ao usuário' },
+        { status: 404 }
+      )
+    }
+
+    if (!category) {
+      return NextResponse.json(
+        { error: 'Categoria não encontrada ou não pertence ao usuário' },
         { status: 404 }
       )
     }
@@ -95,8 +144,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     // Se mudou a conta ou o valor, atualizar saldos
     if (existingTransaction.accountId !== accountId || existingTransaction.amount !== amount) {
       // Reverter saldo da conta antiga
-      const oldAccount = await prisma.account.findUnique({
-        where: { id: existingTransaction.accountId }
+      const oldAccount = await prisma.account.findFirst({
+        where: { 
+          id: existingTransaction.accountId,
+          userId: user.id
+        }
       })
 
       if (oldAccount) {
@@ -110,10 +162,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         })
       }
 
-      // Aplicar novo saldo na conta nova
-      const newAccount = await prisma.account.findUnique({
-        where: { id: accountId }
-      })
+      // Aplicar novo saldo na conta nova (já validado acima)
+      const newAccount = account
 
       if (newAccount) {
         const newBalance = type === 'income' 
@@ -140,11 +190,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 // DELETE /api/transactions/[id] - Excluir transação
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
 
     // Buscar a transação para reverter o saldo da conta
-    const transaction = await prisma.transaction.findUnique({
-      where: { id },
+    const transaction = await prisma.transaction.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      },
       include: { account: true }
     })
 
@@ -156,8 +218,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Reverter o saldo da conta
-    const account = await prisma.account.findUnique({
-      where: { id: transaction.accountId }
+    const account = await prisma.account.findFirst({
+      where: { 
+        id: transaction.accountId,
+        userId: user.id
+      }
     })
 
     if (account) {

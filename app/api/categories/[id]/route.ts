@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/get-server-session'
 
 // GET /api/categories/[id] - Obter categoria específica
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
     
-    const category = await prisma.category.findUnique({
-      where: { id }
+    const category = await prisma.category.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      }
     })
 
     if (!category) {
@@ -30,6 +43,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 // PUT /api/categories/[id] - Atualizar categoria
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
     const body = await request.json()
     const { name, type, color, icon, description, isActive } = body
@@ -49,9 +71,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       )
     }
 
-    // Verificar se a categoria existe
-    const existingCategory = await prisma.category.findUnique({
-      where: { id }
+    // Verificar se a categoria existe e pertence ao usuário
+    const existingCategory = await prisma.category.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      }
     })
 
     if (!existingCategory) {
@@ -87,11 +112,23 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 // DELETE /api/categories/[id] - Excluir categoria
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { id } = params
 
-    // Verificar se a categoria existe
-    const category = await prisma.category.findUnique({
-      where: { id }
+    // Verificar se a categoria existe e pertence ao usuário
+    const category = await prisma.category.findFirst({
+      where: { 
+        id,
+        userId: user.id
+      }
     })
 
     if (!category) {
@@ -103,7 +140,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Verificar se há transações associadas
     const transactionCount = await prisma.transaction.count({
-      where: { categoryId: id }
+      where: { 
+        categoryId: id,
+        userId: user.id
+      }
     })
 
     if (transactionCount > 0) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/get-server-session'
 
 // GET /api/goals/[id] - Buscar meta específica
 export async function GET(
@@ -7,8 +8,20 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const goal = await prisma.goal.findUnique({
-      where: { id: params.id }
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
+    const goal = await prisma.goal.findFirst({
+      where: { 
+        id: params.id,
+        userId: user.id
+      }
     })
 
     if (!goal) {
@@ -34,6 +47,30 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
+    // Verificar se a meta existe e pertence ao usuário
+    const existingGoal = await prisma.goal.findFirst({
+      where: { 
+        id: params.id,
+        userId: user.id
+      }
+    })
+
+    if (!existingGoal) {
+      return NextResponse.json(
+        { error: 'Goal not found' },
+        { status: 404 }
+      )
+    }
+
     const body = await request.json()
     const { name, targetAmount, currentAmount, targetDate, description, isCompleted } = body
 
@@ -65,6 +102,30 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
+    // Verificar se a meta existe e pertence ao usuário
+    const goal = await prisma.goal.findFirst({
+      where: { 
+        id: params.id,
+        userId: user.id
+      }
+    })
+
+    if (!goal) {
+      return NextResponse.json(
+        { error: 'Goal not found' },
+        { status: 404 }
+      )
+    }
+
     await prisma.goal.delete({
       where: { id: params.id }
     })

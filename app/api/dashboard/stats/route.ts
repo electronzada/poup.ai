@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 import prisma from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/get-server-session'
 
 // GET /api/dashboard/stats - Obter estatísticas do dashboard
 export async function GET(request: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Não autorizado' },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
@@ -12,6 +22,8 @@ export async function GET(request: NextRequest) {
     const dateFilter: any = {}
     if (startDate) dateFilter.gte = new Date(startDate)
     if (endDate) dateFilter.lte = new Date(endDate)
+
+    const userFilter = { userId: user.id }
 
     // Estatísticas básicas
     const [
@@ -23,12 +35,16 @@ export async function GET(request: NextRequest) {
       recentTransactions,
       categoryStats
     ] = await Promise.all([
-      prisma.account.count({ where: { isActive: true } }),
+      prisma.account.count({ where: { ...userFilter, isActive: true } }),
       prisma.transaction.count({
-        where: Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {}
+        where: {
+          ...userFilter,
+          ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
+        }
       }),
       prisma.transaction.aggregate({
         where: {
+          ...userFilter,
           type: 'income',
           ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
         },
@@ -36,13 +52,14 @@ export async function GET(request: NextRequest) {
       }),
       prisma.transaction.aggregate({
         where: {
+          ...userFilter,
           type: 'expense',
           ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
         },
         _sum: { amount: true }
       }),
       prisma.account.findMany({
-        where: { isActive: true },
+        where: { ...userFilter, isActive: true },
         select: {
           id: true,
           name: true,
@@ -52,7 +69,10 @@ export async function GET(request: NextRequest) {
         }
       }),
       prisma.transaction.findMany({
-        where: Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {},
+        where: {
+          ...userFilter,
+          ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
+        },
         include: {
           account: { select: { name: true } },
           category: { select: { name: true, color: true } }
@@ -63,6 +83,7 @@ export async function GET(request: NextRequest) {
       prisma.transaction.groupBy({
         by: ['categoryId'],
         where: {
+          ...userFilter,
           type: 'expense',
           ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
         },
@@ -76,6 +97,7 @@ export async function GET(request: NextRequest) {
     // Buscar detalhes das categorias
     const categoryDetails = await prisma.category.findMany({
       where: {
+        ...userFilter,
         id: { in: categoryStats.map(stat => stat.categoryId) }
       },
       select: { id: true, name: true, color: true }

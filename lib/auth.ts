@@ -21,6 +21,32 @@ export const authOptions = {
 		})
 	],
 	session: { strategy: 'jwt' as const },
+	callbacks: {
+		async jwt({ token, user }) {
+			// Quando há um novo login, user está presente
+			if (user) {
+				token.id = user.id
+				token.email = user.email
+				token.name = user.name
+			}
+			// Se não há user mas token.id existe, mantém (sessão existente)
+			// Se não há nenhum dos dois, retorna token vazio
+			return token
+		},
+		async session({ session, token }) {
+			// Garantir que o id sempre seja passado da sessão
+			if (token && token.id) {
+				session.user.id = token.id as string
+			}
+			if (token?.email) {
+				session.user.email = token.email as string
+			}
+			if (token?.name) {
+				session.user.name = token.name as string
+			}
+			return session
+		}
+	},
 	pages: {
 		signIn: '/login'
 	}
