@@ -71,8 +71,9 @@ export function NewCategoryForm({ onClose }: NewCategoryFormProps) {
       }
 
       toast({
-        title: 'Sucesso',
-        description: 'Categoria criada com sucesso.'
+        title: 'Sucesso!',
+        description: 'Categoria criada com sucesso.',
+        variant: 'success'
       })
 
       onClose()

@@ -85,8 +85,9 @@ export function AccountsTable({ initialAccounts }: { initialAccounts?: Account[]
       if (response.ok) {
         loadAccounts() // Recarregar a lista
         toast({
-          title: "Sucesso",
+          title: "Sucesso!",
           description: "Conta excluída com sucesso.",
+          variant: "success",
         })
       } else {
         throw new Error('Erro ao excluir conta')
@@ -128,7 +129,9 @@ export function AccountsTable({ initialAccounts }: { initialAccounts?: Account[]
               <span className="ml-2">Carregando contas...</span>
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Conta</TableHead>
@@ -214,13 +217,15 @@ export function AccountsTable({ initialAccounts }: { initialAccounts?: Account[]
                   })
                 )}
               </TableBody>
-            </Table>
+                </Table>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Conta</DialogTitle>
           </DialogHeader>

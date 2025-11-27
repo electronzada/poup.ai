@@ -15,7 +15,28 @@ import { ptBR } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 
-interface NewTransactionFormProps {
+interface Transaction {
+  id: string
+  date: string
+  description: string
+  amount: number
+  type: "income" | "expense" | "transfer"
+  notes?: string
+  tags: string[]
+  account: {
+    id: string
+    name: string
+  }
+  category: {
+    id: string
+    name: string
+    color: string
+  }
+}
+
+interface EditTransactionFormProps {
+  transaction: Transaction
+  onSave: (transaction: Transaction) => void
   onClose: () => void
 }
 
@@ -33,14 +54,15 @@ interface Category {
   color: string
 }
 
-export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
-  const [date, setDate] = useState<Date>(new Date())
-  const [type, setType] = useState<"income" | "expense">("expense")
-  const [description, setDescription] = useState("")
-  const [amount, setAmount] = useState("")
-  const [categoryId, setCategoryId] = useState("")
-  const [accountId, setAccountId] = useState("")
-  const [tags, setTags] = useState("")
+export function EditTransactionForm({ transaction, onSave, onClose }: EditTransactionFormProps) {
+  const [date, setDate] = useState<Date>(new Date(transaction.date))
+  const [type, setType] = useState<"income" | "expense" | "transfer">(transaction.type)
+  const [description, setDescription] = useState(transaction.description)
+  const [amount, setAmount] = useState(transaction.amount.toString())
+  const [categoryId, setCategoryId] = useState(transaction.category.id)
+  const [accountId, setAccountId] = useState(transaction.account.id)
+  const [notes, setNotes] = useState(transaction.notes || "")
+  const [tags, setTags] = useState(transaction.tags.join(", "))
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [errors, setErrors] = useState<{
@@ -154,8 +176,8 @@ export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
     try {
       const amountValue = Number.parseFloat(amount)
       
-      const response = await fetch('/api/transactions', {
-        method: 'POST',
+      const response = await fetch(`/api/transactions/${transaction.id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -164,7 +186,7 @@ export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
           type,
           description: description.trim(),
           date: date.toISOString(),
-          notes: tags ? tags.split(",").map((tag) => tag.trim()).filter(Boolean).join(", ") : null,
+          notes: notes || null,
           tags: tags
             .split(",")
             .map((tag) => tag.trim())
@@ -174,31 +196,35 @@ export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
         })
       })
 
-      if (response.ok) {
-        const transactionType = type === "expense" ? "gasto" : "receita"
-        toast({
-          title: "Sucesso!",
-          description: `${transactionType === "gasto" ? "Gasto" : "Receita"} registrado com sucesso!`,
-          variant: "success",
-        })
-        
-        // Limpar cache de contas e categorias
-        sessionStorage.removeItem('accounts_cache')
-        sessionStorage.removeItem('categories_cache')
-        
-        // Disparar evento para atualizar a lista de transações
-        window.dispatchEvent(new CustomEvent('transactionCreated'))
-        
-        onClose()
-      } else {
-        const error = await response.json()
-        throw new Error(error.error || 'Erro ao criar lançamento')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || 'Erro ao atualizar transação')
       }
+
+      const updatedTransaction = await response.json()
+      
+      const transactionType = type === "expense" ? "gasto" : type === "income" ? "receita" : "transferência"
+      // Limpar cache de contas e categorias
+      sessionStorage.removeItem('accounts_cache')
+      sessionStorage.removeItem('categories_cache')
+      
+      toast({
+        title: "Sucesso!",
+        description: `${transactionType === "gasto" ? "Gasto" : transactionType === "receita" ? "Receita" : "Transferência"} atualizado com sucesso!`,
+        variant: "success",
+      })
+      
+      onSave({
+        ...transaction,
+        ...updatedTransaction,
+      })
+      onClose()
     } catch (error) {
-      console.error('Erro ao criar transação:', error)
+      console.error('Erro ao atualizar transação:', error)
+      const errorMessage = error instanceof Error ? error.message : "Não foi possível atualizar o lançamento."
       toast({
         title: "Erro",
-        description: error instanceof Error ? error.message : "Não foi possível criar o lançamento.",
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {
@@ -220,13 +246,14 @@ export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="type">Tipo</Label>
-          <Select value={type} onValueChange={(value: "income" | "expense") => setType(value)}>
+          <Select value={type} onValueChange={(value: "income" | "expense" | "transfer") => setType(value)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="expense">Gasto</SelectItem>
               <SelectItem value="income">Entrada</SelectItem>
+              <SelectItem value="transfer">Transferência</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -324,7 +351,7 @@ export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
             </SelectTrigger>
             <SelectContent>
               {categories
-                .filter(cat => cat.type === type)
+                .filter(cat => cat.type === type || type === "transfer")
                 .map((cat) => (
                   <SelectItem key={cat.id} value={cat.id}>
                     {cat.name}
@@ -364,6 +391,16 @@ export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="notes">Observações</Label>
+        <Input
+          id="notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Observações adicionais"
+        />
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="tags">Tags (separadas por vírgula)</Label>
         <Input
           id="tags"
@@ -372,6 +409,7 @@ export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
           placeholder="Ex: trabalho, casa, urgente"
         />
       </div>
+
 
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
@@ -384,10 +422,11 @@ export function NewTransactionForm({ onClose }: NewTransactionFormProps) {
               Salvando...
             </>
           ) : (
-            "Salvar Lançamento"
+            "Salvar Alterações"
           )}
         </Button>
       </div>
     </form>
   )
 }
+

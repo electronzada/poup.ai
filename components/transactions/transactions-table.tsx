@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +11,8 @@ import { MoreHorizontal, ArrowUpDown, Edit, Trash2, Loader2 } from "lucide-react
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useToast } from "@/hooks/use-toast"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { EditTransactionForm } from "./edit-transaction-form"
 
 interface Transaction {
   id: string
@@ -37,20 +39,53 @@ interface TransactionsTableProps {
 
 export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([])
   const [selectedTransactions, setSelectedTransactions] = useState<string[]>([])
   const [sortField, setSortField] = useState<keyof Transaction>("date")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
   const [isLoading, setIsLoading] = useState(true)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [filters, setFilters] = useState<{
+    searchTerm: string
+    selectedAccounts: string[]
+    selectedCategories: string[]
+  }>({ searchTerm: "", selectedAccounts: [], selectedCategories: [] })
   const { toast } = useToast()
 
-  // Carregar transações da API
-  const loadTransactions = async () => {
+  // Carregar transações da API com filtros
+  const loadTransactions = useCallback(async (filterParams?: typeof filters) => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/transactions')
+      
+      // Construir URL com filtros
+      const params = new URLSearchParams()
+      if (filterParams?.selectedAccounts && filterParams.selectedAccounts.length > 0) {
+        filterParams.selectedAccounts.forEach(id => params.append('accountId', id))
+      }
+      if (filterParams?.selectedCategories && filterParams.selectedCategories.length > 0) {
+        filterParams.selectedCategories.forEach(id => params.append('categoryId', id))
+      }
+      
+      const url = `/api/transactions?${params.toString()}`
+      const response = await fetch(url)
+      
       if (response.ok) {
         const data = await response.json()
-        setTransactions(data.transactions || data)
+        const transactionsData = data.transactions || data
+        
+        // Aplicar filtro de busca no cliente (não pode ser feito no servidor facilmente)
+        let filtered = transactionsData
+        if (filterParams?.searchTerm) {
+          const search = filterParams.searchTerm.toLowerCase()
+          filtered = transactionsData.filter((t: Transaction) => 
+            t.description.toLowerCase().includes(search) ||
+            t.notes?.toLowerCase().includes(search) ||
+            t.tags.some(tag => tag.toLowerCase().includes(search))
+          )
+        }
+        
+        setTransactions(transactionsData)
+        setFilteredTransactions(filtered)
       } else {
         throw new Error('Erro ao carregar transações')
       }
@@ -64,21 +99,34 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [toast])
 
   useEffect(() => {
     loadTransactions()
-  }, [refreshTrigger])
+  }, [refreshTrigger, loadTransactions])
 
   // Escutar eventos de nova transação
   useEffect(() => {
     const handleTransactionCreated = () => {
-      loadTransactions()
+      loadTransactions(filters)
     }
 
     window.addEventListener('transactionCreated', handleTransactionCreated)
     return () => window.removeEventListener('transactionCreated', handleTransactionCreated)
-  }, [])
+  }, [filters, loadTransactions])
+
+  // Escutar eventos de filtros e recarregar dados
+  useEffect(() => {
+    const handleFilterChange = (e: Event) => {
+      const customEvent = e as CustomEvent
+      const newFilters = customEvent.detail
+      setFilters(newFilters)
+      loadTransactions(newFilters)
+    }
+
+    window.addEventListener('transactionsFilterChanged', handleFilterChange as EventListener)
+    return () => window.removeEventListener('transactionsFilterChanged', handleFilterChange as EventListener)
+  }, [loadTransactions])
 
   const handleSort = (field: keyof Transaction) => {
     if (sortField === field) {
@@ -89,7 +137,7 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
     }
   }
 
-  const sortedTransactions = [...transactions].sort((a, b) => {
+  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
     let aValue: any = a[sortField]
     let bValue: any = b[sortField]
 
@@ -100,9 +148,13 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
     } else if (sortField === "category") {
       aValue = a.category.name
       bValue = b.category.name
+    } else if (sortField === "date") {
+      // Para datas, converter para Date para comparação
+      aValue = new Date(aValue).getTime()
+      bValue = new Date(bValue).getTime()
     }
 
-    if (typeof aValue === "string") {
+    if (typeof aValue === "string" && sortField !== "date") {
       aValue = aValue.toLowerCase()
       bValue = bValue.toLowerCase()
     }
@@ -136,10 +188,11 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
       // Por enquanto, apenas remove do estado local
       setTransactions((prev) => prev.filter((t) => !selectedTransactions.includes(t.id)))
       setSelectedTransactions([])
-      toast({
-        title: "Sucesso",
-        description: "Transações excluídas com sucesso.",
-      })
+        toast({
+          title: "Sucesso!",
+          description: "Transações excluídas com sucesso.",
+          variant: "success",
+        })
     } catch (error) {
       toast({
         title: "Erro",
@@ -149,14 +202,31 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
     }
   }
 
-  const handleEditTransaction = (transactionId: string) => {
-    console.log('Edit clicked for transaction:', transactionId) // Debug log
-    // TODO: Implementar modal de edição
-    toast({
-      title: "Funcionalidade em desenvolvimento",
-      description: "A edição de transações será implementada em breve.",
-    })
+  const handleEditTransaction = async (transactionId: string) => {
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}`)
+      if (response.ok) {
+        const transaction = await response.json()
+        setEditingTransaction(transaction)
+      } else {
+        throw new Error('Erro ao carregar transação')
+      }
+    } catch (error) {
+      console.error('Erro ao carregar transação:', error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a transação.",
+        variant: "destructive"
+      })
+    }
   }
+
+  const handleSaveEdit = useCallback((updatedTransaction: Transaction) => {
+    setTransactions((prev) => prev.map((t) => (t.id === updatedTransaction.id ? updatedTransaction : t)))
+    setFilteredTransactions((prev) => prev.map((t) => (t.id === updatedTransaction.id ? updatedTransaction : t)))
+    setEditingTransaction(null)
+    loadTransactions(filters) // Recarregar com filtros atuais
+  }, [filters, loadTransactions])
 
   const handleDeleteTransaction = async (transactionId: string) => {
     console.log('Delete clicked for transaction:', transactionId) // Debug log
@@ -166,11 +236,12 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
       })
 
       if (response.ok) {
-        // Recarregar a lista de transações
-        loadTransactions()
+        // Recarregar a lista de transações com filtros atuais
+        loadTransactions(filters)
         toast({
-          title: "Sucesso",
+          title: "Sucesso!",
           description: "Transação excluída com sucesso.",
+          variant: "success",
         })
       } else {
         throw new Error('Erro ao excluir transação')
@@ -188,10 +259,10 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <CardTitle>Lançamentos</CardTitle>
           {selectedTransactions.length > 0 && (
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete} className="w-full sm:w-auto">
               Excluir Selecionados ({selectedTransactions.length})
             </Button>
           )}
@@ -204,7 +275,9 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
             <span className="ml-2">Carregando transações...</span>
           </div>
         ) : (
-          <Table>
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+              <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">
@@ -339,9 +412,26 @@ export function TransactionsTable({ refreshTrigger }: TransactionsTableProps) {
                 ))
               )}
             </TableBody>
-          </Table>
+              </Table>
+            </div>
+          </div>
         )}
       </CardContent>
+
+      <Dialog open={!!editingTransaction} onOpenChange={() => setEditingTransaction(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Lançamento</DialogTitle>
+          </DialogHeader>
+          {editingTransaction && (
+            <EditTransactionForm
+              transaction={editingTransaction}
+              onSave={handleSaveEdit}
+              onClose={() => setEditingTransaction(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

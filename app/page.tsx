@@ -65,10 +65,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Re
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <DateRangeFilter date={dateRange} className="w-auto" />
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
+        <DateRangeFilter date={dateRange} className="w-full sm:w-auto" />
       </div>
 
       <DashboardFilters />

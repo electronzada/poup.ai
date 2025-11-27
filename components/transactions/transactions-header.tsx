@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +24,7 @@ interface Category {
 
 export function TransactionsHeader() {
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [isNewTransactionOpen, setIsNewTransactionOpen] = useState(false)
@@ -31,11 +32,28 @@ export function TransactionsHeader() {
   
   const [accounts, setAccounts] = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Carregar dados reais
+  // Carregar dados reais com cache simples
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Verificar cache simples
+        const cachedAccounts = sessionStorage.getItem('accounts_cache')
+        const cachedCategories = sessionStorage.getItem('categories_cache')
+        const cacheTime = 60000 // 1 minuto
+
+        if (cachedAccounts && cachedCategories) {
+          const { data: accountsData, timestamp } = JSON.parse(cachedAccounts)
+          const { data: categoriesData, timestamp: catTimestamp } = JSON.parse(cachedCategories)
+          
+          if (Date.now() - timestamp < cacheTime && Date.now() - catTimestamp < cacheTime) {
+            setAccounts(accountsData)
+            setCategories(categoriesData)
+            return
+          }
+        }
+
         const [accountsRes, categoriesRes] = await Promise.all([
           fetch('/api/accounts'),
           fetch('/api/categories')
@@ -47,6 +65,10 @@ export function TransactionsHeader() {
           
           setAccounts(accountsData)
           setCategories(categoriesData)
+          
+          // Salvar no cache
+          sessionStorage.setItem('accounts_cache', JSON.stringify({ data: accountsData, timestamp: Date.now() }))
+          sessionStorage.setItem('categories_cache', JSON.stringify({ data: categoriesData, timestamp: Date.now() }))
         }
       } catch (error) {
         console.error('Erro ao carregar dados:', error)
@@ -55,6 +77,31 @@ export function TransactionsHeader() {
 
     loadData()
   }, [])
+
+  // Debounce para busca
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current)
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300) // 300ms de debounce
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [searchTerm])
+
+  // Disparar evento quando filtros mudarem (com debounce na busca)
+  useEffect(() => {
+    const event = new CustomEvent('transactionsFilterChanged', {
+      detail: { searchTerm: debouncedSearchTerm, selectedAccounts, selectedCategories }
+    })
+    window.dispatchEvent(event)
+  }, [debouncedSearchTerm, selectedAccounts, selectedCategories])
 
   const removeFilter = (type: "account" | "category", value: string) => {
     if (type === "account") {
@@ -75,7 +122,7 @@ export function TransactionsHeader() {
   return (
     <div className="space-y-4">
       {/* Action Buttons */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
         <Dialog open={isNewTransactionOpen} onOpenChange={setIsNewTransactionOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 cursor-pointer">
@@ -83,7 +130,7 @@ export function TransactionsHeader() {
               Novo Lançamento
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Novo Lançamento</DialogTitle>
             </DialogHeader>
@@ -98,7 +145,7 @@ export function TransactionsHeader() {
               Importar CSV
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Importar Lançamentos via CSV</DialogTitle>
             </DialogHeader>
@@ -113,8 +160,8 @@ export function TransactionsHeader() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+        <div className="relative flex-1 min-w-[200px] sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por descrição ou tags..."

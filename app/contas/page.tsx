@@ -20,9 +20,9 @@ export default async function AccountsPage() {
     orderBy: { createdAt: 'desc' } 
   })
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Contas</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Contas</h1>
       </div>
 
       <AccountsHeader />

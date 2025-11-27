@@ -8,15 +8,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Icon } from "@/components/ui/icon"
+import { useToast } from "@/hooks/use-toast"
 
 interface Category {
   id: string
   name: string
   color: string
   icon: string
-  type: "income" | "expense"
-  monthlyTotal: number
-  transactionCount: number
+  type: "income" | "expense" | "transfer"
+  monthlyTotal?: number
+  transactionCount?: number
 }
 
 interface EditCategoryFormProps {
@@ -54,19 +55,57 @@ const iconOptions = [
 
 export function EditCategoryForm({ category, onSave, onClose }: EditCategoryFormProps) {
   const [name, setName] = useState(category.name)
-  const [type, setType] = useState<"income" | "expense">(category.type)
+  const [type, setType] = useState<"income" | "expense" | "transfer">(category.type)
   const [color, setColor] = useState(category.color)
   const [icon, setIcon] = useState(category.icon)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
-      ...category,
-      name,
-      type,
-      color,
-      icon,
-    })
+    setError(null)
+    setLoading(true)
+
+    try {
+      const response = await fetch(`/api/categories/${category.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          type,
+          color,
+          icon,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Erro ao atualizar categoria')
+      }
+
+      const updatedCategory = await response.json()
+      onSave({
+        ...category,
+        ...updatedCategory,
+        name,
+        type,
+        color,
+        icon,
+      })
+      toast({
+        title: "Sucesso!",
+        description: "Categoria atualizada com sucesso.",
+        variant: "success",
+      })
+      onClose()
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao atualizar categoria')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -84,13 +123,14 @@ export function EditCategoryForm({ category, onSave, onClose }: EditCategoryForm
 
       <div className="space-y-2">
         <Label htmlFor="type">Tipo</Label>
-        <Select value={type} onValueChange={(value: "income" | "expense") => setType(value)}>
+        <Select value={type} onValueChange={(value: "income" | "expense" | "transfer") => setType(value)}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="expense">Gasto</SelectItem>
             <SelectItem value="income">Entrada</SelectItem>
+            <SelectItem value="transfer">Transferência</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -131,11 +171,18 @@ export function EditCategoryForm({ category, onSave, onClose }: EditCategoryForm
         </div>
       </div>
 
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+          {error}
+        </div>
+      )}
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
           Cancelar
         </Button>
-        <Button type="submit">Salvar Alterações</Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Salvando...' : 'Salvar Alterações'}
+        </Button>
       </div>
     </form>
   )

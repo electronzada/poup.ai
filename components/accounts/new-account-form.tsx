@@ -62,7 +62,11 @@ export function NewAccountForm({ onClose }: NewAccountFormProps) {
         window.dispatchEvent(new CustomEvent('accounts:changed'))
       }
 
-      toast({ title: 'Sucesso', description: 'Conta criada com sucesso.' })
+      toast({ 
+        title: 'Sucesso!', 
+        description: 'Conta criada com sucesso.',
+        variant: 'success'
+      })
       onClose()
     } catch (error: any) {
       console.error('Erro ao criar conta:', error)

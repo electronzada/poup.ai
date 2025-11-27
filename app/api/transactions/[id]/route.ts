@@ -60,10 +60,35 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json()
     const { amount, type, description, date, notes, tags, accountId, categoryId } = body
 
-    // Validação básica
-    if (!amount || !type || !description || !accountId || !categoryId) {
+    // Validações específicas com mensagens claras
+    const missingFields: string[] = []
+    
+    if (!description || (typeof description === 'string' && description.trim() === '')) {
+      missingFields.push('descrição')
+    }
+    
+    if (!amount || amount === '') {
+      missingFields.push('valor')
+    }
+    
+    if (!categoryId) {
+      missingFields.push('categoria')
+    }
+    
+    if (!accountId) {
+      missingFields.push('conta')
+    }
+    
+    if (missingFields.length > 0) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: amount, type, description, accountId, categoryId' },
+        { error: `Campos obrigatórios não preenchidos: ${missingFields.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    if (!type) {
+      return NextResponse.json(
+        { error: 'Tipo de transação é obrigatório' },
         { status: 400 }
       )
     }
@@ -75,9 +100,26 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       )
     }
 
-    if (amount <= 0) {
+    // Validar valor numérico
+    const amountValue = typeof amount === 'number' ? amount : Number.parseFloat(amount)
+    
+    if (isNaN(amountValue)) {
       return NextResponse.json(
-        { error: 'Valor deve ser maior que zero' },
+        { error: 'O valor deve ser um número válido' },
+        { status: 400 }
+      )
+    }
+
+    if (amountValue <= 0) {
+      return NextResponse.json(
+        { error: 'O valor deve ser maior que zero' },
+        { status: 400 }
+      )
+    }
+
+    if (amountValue < 0) {
+      return NextResponse.json(
+        { error: 'Não são permitidos valores negativos' },
         { status: 400 }
       )
     }
@@ -126,9 +168,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const updatedTransaction = await prisma.transaction.update({
       where: { id },
       data: {
-        amount,
+        amount: amountValue,
         type,
-        description,
+        description: typeof description === 'string' ? description.trim() : description,
         date: date ? new Date(date) : existingTransaction.date,
         notes,
         tags: tags || [],
@@ -142,7 +184,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     })
 
     // Se mudou a conta ou o valor, atualizar saldos
-    if (existingTransaction.accountId !== accountId || existingTransaction.amount !== amount) {
+    if (existingTransaction.accountId !== accountId || existingTransaction.amount !== amountValue) {
       // Reverter saldo da conta antiga
       const oldAccount = await prisma.account.findFirst({
         where: { 
@@ -167,8 +209,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
       if (newAccount) {
         const newBalance = type === 'income' 
-          ? newAccount.balance + amount 
-          : newAccount.balance - amount
+          ? newAccount.balance + amountValue 
+          : newAccount.balance - amountValue
 
         await prisma.account.update({
           where: { id: accountId },
@@ -217,7 +259,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       )
     }
 
-    // Reverter o saldo da conta
+    // Recalcular o saldo da conta baseado em todas as transações restantes
     const account = await prisma.account.findFirst({
       where: { 
         id: transaction.accountId,
@@ -226,9 +268,37 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     })
 
     if (account) {
-      const newBalance = transaction.type === 'income' 
-        ? account.balance - transaction.amount 
-        : account.balance + transaction.amount
+      // Buscar todas as transações da conta (incluindo a que será excluída)
+      const allTransactions = await prisma.transaction.findMany({
+        where: {
+          accountId: transaction.accountId,
+          userId: user.id
+        }
+      })
+
+      // Calcular o saldo inicial: saldo atual - impacto de todas as transações existentes
+      // Isso nos dá o saldo que a conta tinha antes de qualquer transação
+      let calculatedInitialBalance = account.balance
+      allTransactions.forEach(t => {
+        if (t.type === 'income') {
+          calculatedInitialBalance -= t.amount
+        } else if (t.type === 'expense') {
+          calculatedInitialBalance += t.amount
+        }
+      })
+
+      // Buscar todas as transações restantes (exceto a que será excluída)
+      const remainingTransactions = allTransactions.filter(t => t.id !== id)
+
+      // Calcular o novo saldo: saldo inicial + impacto das transações restantes
+      let newBalance = calculatedInitialBalance
+      remainingTransactions.forEach(t => {
+        if (t.type === 'income') {
+          newBalance += t.amount
+        } else if (t.type === 'expense') {
+          newBalance -= t.amount
+        }
+      })
 
       await prisma.account.update({
         where: { id: transaction.accountId },

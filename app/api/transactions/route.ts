@@ -16,9 +16,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const accountId = searchParams.get('accountId')
-    const categoryId = searchParams.get('categoryId')
+    const limit = parseInt(searchParams.get('limit') || '100') // Aumentado para reduzir paginação
+    const accountIds = searchParams.getAll('accountId')
+    const categoryIds = searchParams.getAll('categoryId')
     const type = searchParams.get('type')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
@@ -27,9 +27,19 @@ export async function GET(request: NextRequest) {
       userId: user.id
     }
     
-    if (accountId) where.accountId = accountId
-    if (categoryId) where.categoryId = categoryId
+    // Suportar múltiplos accountIds
+    if (accountIds.length > 0) {
+      where.accountId = accountIds.length === 1 ? accountIds[0] : { in: accountIds }
+    }
+    
+    // Suportar múltiplos categoryIds
+    if (categoryIds.length > 0) {
+      where.categoryId = categoryIds.length === 1 ? categoryIds[0] : { in: categoryIds }
+    }
+    
     if (type) where.type = type
+    
+    // Filtrar por data da transação (date)
     if (startDate || endDate) {
       where.date = {}
       if (startDate) where.date.gte = new Date(startDate)
@@ -39,9 +49,27 @@ export async function GET(request: NextRequest) {
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
-        include: {
-          account: true,
-          category: true
+        select: {
+          id: true,
+          date: true,
+          description: true,
+          amount: true,
+          type: true,
+          notes: true,
+          tags: true,
+          account: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          category: {
+            select: {
+              id: true,
+              name: true,
+              color: true
+            }
+          }
         },
         orderBy: { date: 'desc' },
         skip: (page - 1) * limit,
@@ -83,10 +111,35 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { amount, type, description, date, notes, tags, accountId, categoryId } = body
 
-    // Validação básica
-    if (!amount || !type || !description || !accountId || !categoryId) {
+    // Validações específicas com mensagens claras
+    const missingFields: string[] = []
+    
+    if (!description || (typeof description === 'string' && description.trim() === '')) {
+      missingFields.push('descrição')
+    }
+    
+    if (!amount || amount === '') {
+      missingFields.push('valor')
+    }
+    
+    if (!categoryId) {
+      missingFields.push('categoria')
+    }
+    
+    if (!accountId) {
+      missingFields.push('conta')
+    }
+    
+    if (missingFields.length > 0) {
       return NextResponse.json(
-        { error: 'Campos obrigatórios: amount, type, description, accountId, categoryId' },
+        { error: `Campos obrigatórios não preenchidos: ${missingFields.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    if (!type) {
+      return NextResponse.json(
+        { error: 'Tipo de transação é obrigatório' },
         { status: 400 }
       )
     }
@@ -98,9 +151,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (amount <= 0) {
+    // Validar valor numérico
+    const amountValue = typeof amount === 'number' ? amount : Number.parseFloat(amount)
+    
+    if (isNaN(amountValue)) {
       return NextResponse.json(
-        { error: 'Valor deve ser maior que zero' },
+        { error: 'O valor deve ser um número válido' },
+        { status: 400 }
+      )
+    }
+
+    if (amountValue <= 0) {
+      return NextResponse.json(
+        { error: 'O valor deve ser maior que zero' },
+        { status: 400 }
+      )
+    }
+
+    if (amountValue < 0) {
+      return NextResponse.json(
+        { error: 'Não são permitidos valores negativos' },
         { status: 400 }
       )
     }
@@ -131,9 +201,9 @@ export async function POST(request: NextRequest) {
 
     const transaction = await prisma.transaction.create({
       data: {
-        amount,
+        amount: amountValue,
         type,
-        description,
+        description: typeof description === 'string' ? description.trim() : description,
         date: date ? new Date(date) : new Date(),
         notes,
         tags: tags || [],
@@ -149,8 +219,8 @@ export async function POST(request: NextRequest) {
 
     if (account) {
       const newBalance = type === 'income' 
-        ? account.balance + amount 
-        : account.balance - amount
+        ? account.balance + amountValue 
+        : account.balance - amountValue
 
       await prisma.account.update({
         where: { id: accountId },

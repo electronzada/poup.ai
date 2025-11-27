@@ -7,14 +7,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
 
 interface Account {
   id: string
   name: string
-  type: "cash" | "checking" | "credit" | "savings"
+  type: "checking" | "savings" | "credit" | "investment"
   currency: string
   balance: number
-  lastTransaction: Date
+  lastTransaction?: Date
 }
 
 interface EditAccountFormProps {
@@ -24,10 +25,10 @@ interface EditAccountFormProps {
 }
 
 const accountTypes = [
-  { value: "cash", label: "Dinheiro" },
   { value: "checking", label: "Conta Corrente" },
-  { value: "credit", label: "Cartão de Crédito" },
   { value: "savings", label: "Poupança" },
+  { value: "credit", label: "Cartão de Crédito" },
+  { value: "investment", label: "Investimento" },
 ]
 
 const currencies = [
@@ -38,19 +39,56 @@ const currencies = [
 
 export function EditAccountForm({ account, onSave, onClose }: EditAccountFormProps) {
   const [name, setName] = useState(account.name)
-  const [type, setType] = useState<"cash" | "checking" | "credit" | "savings">(account.type)
+  const [type, setType] = useState<"checking" | "savings" | "credit" | "investment">(account.type)
   const [currency, setCurrency] = useState(account.currency)
   const [balance, setBalance] = useState(account.balance.toString())
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
-      ...account,
-      name,
-      type,
-      currency,
-      balance: Number.parseFloat(balance) || 0,
-    })
+    setError(null)
+    setLoading(true)
+
+    try {
+      const response = await fetch(`/api/accounts/${account.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          type,
+          currency,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Erro ao atualizar conta')
+      }
+
+      const updatedAccount = await response.json()
+      onSave({
+        ...account,
+        ...updatedAccount,
+        name,
+        type,
+        currency,
+        balance: account.balance, // Mantém o saldo original, pois não é editável via API
+      })
+      toast({
+        title: "Sucesso!",
+        description: "Conta atualizada com sucesso.",
+        variant: "success",
+      })
+      onClose()
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao atualizar conta')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -68,7 +106,7 @@ export function EditAccountForm({ account, onSave, onClose }: EditAccountFormPro
 
       <div className="space-y-2">
         <Label htmlFor="type">Tipo de Conta</Label>
-        <Select value={type} onValueChange={(value: "cash" | "checking" | "credit" | "savings") => setType(value)}>
+        <Select value={type} onValueChange={(value: "checking" | "savings" | "credit" | "investment") => setType(value)}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -107,14 +145,25 @@ export function EditAccountForm({ account, onSave, onClose }: EditAccountFormPro
           value={balance}
           onChange={(e) => setBalance(e.target.value)}
           placeholder="0,00"
+          disabled
         />
+        <p className="text-xs text-muted-foreground">
+          O saldo é atualizado automaticamente através das transações.
+        </p>
       </div>
 
+      {error && (
+        <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+          {error}
+        </div>
+      )}
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
           Cancelar
         </Button>
-        <Button type="submit">Salvar Alterações</Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Salvando...' : 'Salvar Alterações'}
+        </Button>
       </div>
     </form>
   )

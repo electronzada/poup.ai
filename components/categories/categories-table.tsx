@@ -81,8 +81,9 @@ export function CategoriesTable({ initialCategories }: { initialCategories?: Cat
       if (response.ok) {
         loadCategories() // Recarregar a lista
         toast({
-          title: "Sucesso",
+          title: "Sucesso!",
           description: "Categoria excluída com sucesso.",
+          variant: "success",
         })
       } else {
         throw new Error('Erro ao excluir categoria')
@@ -120,7 +121,9 @@ export function CategoriesTable({ initialCategories }: { initialCategories?: Cat
               <span className="ml-2">Carregando categorias...</span>
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Categoria</TableHead>
@@ -200,13 +203,15 @@ export function CategoriesTable({ initialCategories }: { initialCategories?: Cat
                   ))
                 )}
               </TableBody>
-            </Table>
+                </Table>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
 
       <Dialog open={!!editingCategory} onOpenChange={() => setEditingCategory(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Categoria</DialogTitle>
           </DialogHeader>

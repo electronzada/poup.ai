@@ -15,20 +15,20 @@ export default function TransactionsPage() {
   })
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Lançamentos</h1>
-        <DateRangeFilter date={dateRange} onDateChange={setDateRange} className="w-auto" />
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Lançamentos</h1>
+        <DateRangeFilter date={dateRange} onDateChange={setDateRange} className="w-full sm:w-auto" />
       </div>
 
       <TransactionsHeader />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="lg:col-span-3 order-2 lg:order-1">
           <TransactionsTable />
         </div>
-        <div className="lg:col-span-1">
-          <TransactionsSidebar />
+        <div className="lg:col-span-1 order-1 lg:order-2">
+          <TransactionsSidebar dateRange={dateRange} />
         </div>
       </div>
     </div>
